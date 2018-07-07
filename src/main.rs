@@ -3,6 +3,7 @@ extern crate graphics;
 extern crate opengl_graphics;
 extern crate piston;
 extern crate rand;
+extern crate texture;
 
 use rand::{thread_rng, Rng};
 
@@ -12,8 +13,12 @@ use piston::event_loop::*;
 use piston::input::*;
 use piston::window::WindowSettings;
 
-const WIDTH: u32 = 700;
+use std::path::Path;
+
+const WIDTH: u32 = 800;
 const HEIGHT: u32 = 700;
+
+const UPS: u64 = 120;
 
 struct Coordinate {
     x: f64,
@@ -228,51 +233,12 @@ fn are_colliding(coord_one: &Coordinate, size_one: f64, coord_two: &Coordinate, 
     top_collision(&coord_one, size_one, &coord_two, size_two) || bottom_collision(&coord_one, size_one, &coord_two, size_two)
 }
 
-enum PatternType {
-    Wait,
-    Spawn(Vec<Faller>),
-}
+fn load_game_over_image() -> (graphics::Image, opengl_graphics::Texture) {
+    let image = graphics::Image::new().rect([0.0, 0.0, 800.0, 120.0]);
 
-type Pattern = Vec<PatternType>;
+    let texture = opengl_graphics::Texture::from_path(Path::new("../images/GameOver.png"), &texture::TextureSettings::new()).unwrap();
 
-struct Patterns {
-    wave: Pattern,
-}
-
-fn create_wave_pattern(faller_size: f64, faller_velocity: f64, gap: f64) -> Pattern {
-    let num_of_fallers = (WIDTH as f64 / faller_size).round() as u64;
-
-    let mut wave_pattern = vec![];
-    let spread = 3_f64;
-    for i in 0..(num_of_fallers as f64*spread).round() as i64 {
-        let faller1 = Faller {
-            coordinate: Coordinate {
-                x: (i as f64/spread*faller_size),
-                y: -faller_size,
-            },
-            velocity: faller_velocity,
-            size: faller_size,
-            is_dead: false,
-        };
-        let faller2 = Faller {
-            coordinate: Coordinate {
-                x: ((i as f64/spread*faller_size)+gap),
-                y: -faller_size,
-            },
-            velocity: faller_velocity,
-            size: faller_size,
-            is_dead: false,
-        };
-
-        wave_pattern.push(PatternType::Spawn(vec![faller1, faller2]));
-
-        for j in 0..1 {
-            wave_pattern.push(PatternType::Wait);
-        }
-    }
-
-    wave_pattern.reverse();
-    wave_pattern
+    (image, texture)
 }
 
 struct App {
@@ -287,7 +253,7 @@ struct App {
     faller_velocity_min: f64,
     faller_velocity_max: f64,
     is_game_over: bool,
-    current_pattern: Option<Pattern>,
+    time_elapsed: f64,
 }
 
 impl App {
@@ -304,7 +270,7 @@ impl App {
             faller_velocity_min: 200_f64,
             faller_velocity_max: 500_f64,
             is_game_over: false,
-            current_pattern: None,
+            time_elapsed: 0_f64,
         }
     }
 
@@ -316,7 +282,7 @@ impl App {
         self.faller_size_min = 10_f64;
         self.faller_size_max = 50_f64;
 
-        self.current_pattern = None;
+        self.time_elapsed = 0_f64;
 
         self.is_game_over = false;
     }
@@ -336,28 +302,29 @@ impl App {
             for faller in &mut self.fallers {
                 faller.render(&mut self.gl, args);
             }
-        } else {
-            self.render_game_over(args);
         }
     }
 
-    fn render_game_over(&mut self, args: &RenderArgs) {
+    fn render_game_over(&mut self, args: &RenderArgs, game_over_image: &graphics::Image, game_over_texture: &opengl_graphics::Texture) {
         use graphics;
 
-        const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+        const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 
         self.gl.draw(args.viewport(), |c, gl| {
-            graphics::clear(BLACK, gl);
+            graphics::clear(WHITE, gl);
+
+            game_over_image.draw(game_over_texture, &c.draw_state, c.transform, gl);
         });
+
+        //println!("{}", self.time_elapsed);
     }
 
     fn update(&mut self, args: &UpdateArgs) {
         if self.player.is_dead {
-            self.reset();
+            //self.reset();
             return
         }
-        //self.possibly_create_random_faller();
-        self.play_pattern();
+        self.possibly_create_random_faller();
         self.spawn_percent_chance += 0.001_f64;
         self.faller_size_offset += 0.003_f64;
 
@@ -375,32 +342,8 @@ impl App {
         if self.player.is_dead {
             self.is_game_over = true;
         }
-    }
 
-    fn play_pattern(&mut self) {
-        let mut should_make_current_pattern_none = false;
-        if let Some(ref mut pattern) = self.current_pattern {
-            let fallers = pattern.pop();
-
-            if let Some(current_fallers) = fallers {
-                match current_fallers {
-                    PatternType::Spawn(fallers) => {
-                        for faller in fallers {
-                            self.fallers.push(faller);
-                        }
-                    },
-                    PatternType::Wait => {}
-                }
-            } else {
-                should_make_current_pattern_none = true;
-            }
-        } else {
-            self.current_pattern = Some(create_wave_pattern(30_f64, 200_f64, 200_f64));
-        }
-
-        if should_make_current_pattern_none {
-            self.current_pattern = None;
-        }
+        self.time_elapsed += args.dt;
     }
 
     fn possibly_create_random_faller(&mut self) {
@@ -435,10 +378,17 @@ fn main() {
 
     let mut app = App::new();
 
-    let mut events = Events::new(EventSettings::new());
+    let game_over_image = graphics::Image::new().rect([0.0, 0.0, 800.0, 120.0]);
+
+    let game_over_texture = opengl_graphics::Texture::from_path(Path::new("./images/GameOver.png"), &texture::TextureSettings::new()).unwrap();
+    let mut events = Events::new(EventSettings::new().ups(UPS));
     while let Some(e) = events.next(&mut window) {
         if let Some(r) = e.render_args() {
-            app.render(&r);
+            if app.is_game_over {
+                app.render_game_over(&r, &game_over_image, &game_over_texture);
+            } else {
+                app.render(&r);
+            }
         }
 
         if let Some(u) = e.update_args() {
