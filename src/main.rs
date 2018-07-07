@@ -230,15 +230,26 @@ fn are_colliding(coord_one: &Coordinate, size_one: f64, coord_two: &Coordinate, 
             is_point_within_square(&bottom_right(&coord_one, size_one), size_one, &coord_two, size_two)
     }
 
-    top_collision(&coord_one, size_one, &coord_two, size_two) || bottom_collision(&coord_one, size_one, &coord_two, size_two)
+    if size_one < size_two {
+        top_collision(&coord_one, size_one, &coord_two, size_two) || bottom_collision(&coord_one, size_one, &coord_two, size_two)
+    } else {
+        top_collision(&coord_two, size_two, &coord_one, size_one) || bottom_collision(&coord_two, size_two, &coord_one, size_one)
+
+    }
 }
 
-fn load_game_over_image() -> (graphics::Image, opengl_graphics::Texture) {
-    let image = graphics::Image::new().rect([0.0, 0.0, 800.0, 120.0]);
+struct Image {
+    image: graphics::Image,
+    texture: opengl_graphics::Texture,
+}
 
-    let texture = opengl_graphics::Texture::from_path(Path::new("../images/GameOver.png"), &texture::TextureSettings::new()).unwrap();
-
-    (image, texture)
+impl Image {
+    fn new(coordinate: Coordinate, width: f64, height: f64, path: &str) -> Image {
+        Image {
+            image: graphics::Image::new().rect([coordinate.x, coordinate.y, width, height]),
+            texture: opengl_graphics::Texture::from_path(Path::new(path), &texture::TextureSettings::new()).unwrap(),
+        }
+    }
 }
 
 struct App {
@@ -305,7 +316,7 @@ impl App {
         }
     }
 
-    fn render_game_over(&mut self, args: &RenderArgs, game_over_image: &graphics::Image, game_over_texture: &opengl_graphics::Texture) {
+    fn render_game_over(&mut self, args: &RenderArgs, game_over_image: &Image) {
         use graphics;
 
         const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
@@ -313,7 +324,7 @@ impl App {
         self.gl.draw(args.viewport(), |c, gl| {
             graphics::clear(WHITE, gl);
 
-            game_over_image.draw(game_over_texture, &c.draw_state, c.transform, gl);
+            game_over_image.image.draw(&game_over_image.texture, &c.draw_state, c.transform, gl);
         });
 
         //println!("{}", self.time_elapsed);
@@ -330,6 +341,16 @@ impl App {
 
         self.player.update(&args);
 
+        self.update_fallers(args);
+
+        if self.player.is_dead {
+            self.is_game_over = true;
+        }
+
+        self.time_elapsed += args.dt;
+    }
+
+    fn update_fallers(&mut self, args: &UpdateArgs) {
         for faller in &mut self.fallers {
             faller.update(&args);
             if are_colliding(&self.player.coordinate, self.player.size, &faller.coordinate, faller.size) {
@@ -338,12 +359,6 @@ impl App {
             }
         }
         self.fallers.retain(|faller| !faller.is_dead);
-
-        if self.player.is_dead {
-            self.is_game_over = true;
-        }
-
-        self.time_elapsed += args.dt;
     }
 
     fn possibly_create_random_faller(&mut self) {
@@ -378,14 +393,13 @@ fn main() {
 
     let mut app = App::new();
 
-    let game_over_image = graphics::Image::new().rect([0.0, 0.0, 800.0, 120.0]);
+    let game_over_image = Image::new(Coordinate{x: 0.0, y: 0.0}, 800.0, 120.0, "./images/GameOver.png");
 
-    let game_over_texture = opengl_graphics::Texture::from_path(Path::new("./images/GameOver.png"), &texture::TextureSettings::new()).unwrap();
     let mut events = Events::new(EventSettings::new().ups(UPS));
     while let Some(e) = events.next(&mut window) {
         if let Some(r) = e.render_args() {
             if app.is_game_over {
-                app.render_game_over(&r, &game_over_image, &game_over_texture);
+                app.render_game_over(&r, &game_over_image);
             } else {
                 app.render(&r);
             }
