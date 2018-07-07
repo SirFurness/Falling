@@ -84,7 +84,7 @@ impl Player {
     }
 
     fn move_right(&mut self, dt: f64) {
-        if self.coordinate.x + self.speed*dt > WIDTH as f64 - self.size {
+        if self.coordinate.x + self.speed * dt > WIDTH as f64 - self.size {
             self.coordinate.x = 0_f64;
         } else {
             self.coordinate.x += self.speed * dt;
@@ -92,7 +92,7 @@ impl Player {
     }
 
     fn move_left(&mut self, dt: f64) {
-        if self.coordinate.x - self.speed*dt < 0_f64 {
+        if self.coordinate.x - self.speed * dt < 0_f64 {
             self.coordinate.x = WIDTH as f64 - self.size;
         } else {
             self.coordinate.x -= self.speed * dt;
@@ -100,13 +100,15 @@ impl Player {
     }
 
     fn button(&mut self, args: &ButtonArgs) {
-        if args.button == Button::Keyboard(Key::A) {
+        if args.button == Button::Keyboard(Key::A) || args.button == Button::Keyboard(Key::Left) {
             if args.state == ButtonState::Press {
                 self.left_pressed();
             } else {
                 self.left_released();
             }
-        } else if args.button == Button::Keyboard(Key::D) {
+        } else if args.button == Button::Keyboard(Key::D)
+            || args.button == Button::Keyboard(Key::Right)
+        {
             if args.state == ButtonState::Press {
                 self.right_pressed();
             } else {
@@ -163,11 +165,7 @@ impl Faller {
 
         const BLUE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
 
-        let square = graphics::rectangle::square(
-            self.coordinate.x,
-            self.coordinate.y,
-            self.size,
-        );
+        let square = graphics::rectangle::square(self.coordinate.x, self.coordinate.y, self.size);
 
         gl.draw(args.viewport(), |c, gl| {
             let transform = c.transform;
@@ -181,7 +179,7 @@ impl Faller {
     }
 
     fn move_faller(&mut self, dt: f64) {
-        self.coordinate.y += self.velocity*dt;
+        self.coordinate.y += self.velocity * dt;
 
         if self.coordinate.y > HEIGHT as f64 {
             self.is_dead = true;
@@ -189,52 +187,95 @@ impl Faller {
     }
 }
 
-fn are_colliding(coord_one: &Coordinate, size_one: f64, coord_two: &Coordinate, size_two: f64) -> bool {
+fn are_colliding(
+    coord_one: &Coordinate,
+    size_one: f64,
+    coord_two: &Coordinate,
+    size_two: f64,
+) -> bool {
     fn top_left(coord: &Coordinate, size: f64) -> Coordinate {
         Coordinate {
             x: coord.x,
-            y: coord.y
+            y: coord.y,
         }
     }
     fn top_right(coord: &Coordinate, size: f64) -> Coordinate {
         Coordinate {
-            x: coord.x+size,
-            y: coord.y
+            x: coord.x + size,
+            y: coord.y,
         }
     }
     fn bottom_left(coord: &Coordinate, size: f64) -> Coordinate {
         Coordinate {
             x: coord.x,
-            y: coord.y+size
+            y: coord.y + size,
         }
     }
     fn bottom_right(coord: &Coordinate, size: f64) -> Coordinate {
         Coordinate {
-            x: coord.x+size,
-            y: coord.y+size
+            x: coord.x + size,
+            y: coord.y + size,
         }
     }
 
-    fn is_point_within_square(coord_one: &Coordinate, size_one: f64, coord_two: &Coordinate, size_two: f64) -> bool {
-        coord_one.x >= coord_two.x && coord_one.x <= coord_two.x+size_two &&
-            coord_one.y >= coord_two.y && coord_one.y <= coord_two.y+size_two
+    fn is_point_within_square(
+        coord_one: &Coordinate,
+        size_one: f64,
+        coord_two: &Coordinate,
+        size_two: f64,
+    ) -> bool {
+        coord_one.x >= coord_two.x
+            && coord_one.x <= coord_two.x + size_two
+            && coord_one.y >= coord_two.y
+            && coord_one.y <= coord_two.y + size_two
     }
 
-    fn top_collision(coord_one: &Coordinate, size_one: f64, coord_two: &Coordinate, size_two: f64) -> bool {
-        is_point_within_square(&top_left(&coord_one, size_one), size_one, &coord_two, size_two) ||
-            is_point_within_square(&top_right(&coord_one, size_one), size_one, &coord_two, size_two)
+    fn top_collision(
+        coord_one: &Coordinate,
+        size_one: f64,
+        coord_two: &Coordinate,
+        size_two: f64,
+    ) -> bool {
+        is_point_within_square(
+            &top_left(&coord_one, size_one),
+            size_one,
+            &coord_two,
+            size_two,
+        )
+            || is_point_within_square(
+                &top_right(&coord_one, size_one),
+                size_one,
+                &coord_two,
+                size_two,
+            )
     }
 
-    fn bottom_collision(coord_one: &Coordinate, size_one: f64, coord_two: &Coordinate, size_two: f64) -> bool {
-        is_point_within_square(&bottom_left(&coord_one, size_one), size_one, &coord_two, size_two) ||
-            is_point_within_square(&bottom_right(&coord_one, size_one), size_one, &coord_two, size_two)
+    fn bottom_collision(
+        coord_one: &Coordinate,
+        size_one: f64,
+        coord_two: &Coordinate,
+        size_two: f64,
+    ) -> bool {
+        is_point_within_square(
+            &bottom_left(&coord_one, size_one),
+            size_one,
+            &coord_two,
+            size_two,
+        )
+            || is_point_within_square(
+                &bottom_right(&coord_one, size_one),
+                size_one,
+                &coord_two,
+                size_two,
+            )
     }
 
     if size_one < size_two {
-        top_collision(&coord_one, size_one, &coord_two, size_two) || bottom_collision(&coord_one, size_one, &coord_two, size_two)
+        top_collision(&coord_one, size_one, &coord_two, size_two)
+            || bottom_collision(&coord_one, size_one, &coord_two, size_two)
     } else {
-        top_collision(&coord_two, size_two, &coord_one, size_one) || bottom_collision(&coord_two, size_two, &coord_one, size_one)
-
+        top_collision(&coord_two, size_two, &coord_one, size_one)
+            || bottom_collision(&coord_two, size_two, &coord_one, size_one)
     }
 }
 
@@ -248,7 +289,10 @@ impl Image {
     fn new(coordinate: Coordinate, width: f64, height: f64, path: &str) -> Image {
         Image {
             image: graphics::Image::new().rect([coordinate.x, coordinate.y, width, height]),
-            texture: opengl_graphics::Texture::from_path(Path::new(path), &texture::TextureSettings::new()).unwrap(),
+            texture: opengl_graphics::Texture::from_path(
+                Path::new(path),
+                &texture::TextureSettings::new(),
+            ).unwrap(),
             width,
         }
     }
@@ -265,7 +309,12 @@ fn load_numbers() -> Vec<Image> {
     let mut numbers = vec![];
 
     for i in 0..10 {
-        numbers.push(Image::new(Coordinate{x:0f64,y:0f64}, 45.0, 65.0, &("./images/".to_owned()+&i.to_string()+".png")));
+        numbers.push(Image::new(
+            Coordinate { x: 0f64, y: 0f64 },
+            45.0,
+            65.0,
+            &("./images/".to_owned() + &i.to_string() + ".png"),
+        ));
     }
 
     numbers
@@ -277,9 +326,9 @@ fn get_digits(number_u64: u64) -> Vec<u32> {
     let mut digits = vec![];
 
     while number != 0.0 {
-        digits.push((number-((number/10.0).floor())*10.0) as u32);
+        digits.push((number - ((number / 10.0).floor()) * 10.0) as u32);
 
-        number = (number/10.0).floor();
+        number = (number / 10.0).floor();
     }
 
     digits.reverse();
@@ -293,7 +342,10 @@ fn set_number_coordinates(time: u64, coordinate: Coordinate, numbers: &mut Vec<I
     for i in 0..digits.len() {
         let number = digits[i];
 
-        numbers[number as usize].set_coordinate(Coordinate{x: coordinate.x+(i*padding) as f64, y:coordinate.y});
+        numbers[number as usize].set_coordinate(Coordinate {
+            x: coordinate.x + (i * padding) as f64,
+            y: coordinate.y,
+        });
     }
 }
 
@@ -364,11 +416,23 @@ impl App {
         }
     }
 
-    fn render_game_over(&mut self, args: &RenderArgs, images: &Vec<Image>, numbers: &mut Vec<Image>) {
+    fn render_game_over(
+        &mut self,
+        args: &RenderArgs,
+        images: &Vec<Image>,
+        numbers: &mut Vec<Image>,
+    ) {
         use graphics;
 
         if self.is_first_game_over_render {
-            set_number_coordinates(self.time_elapsed.round() as u64, Coordinate{x:430f64,y:300f64}, numbers);
+            set_number_coordinates(
+                self.time_elapsed.round() as u64,
+                Coordinate {
+                    x: 430f64,
+                    y: 300f64,
+                },
+                numbers,
+            );
             self.is_first_game_over_render = false;
         }
 
@@ -380,11 +444,18 @@ impl App {
             graphics::clear(WHITE, gl);
 
             for image in images {
-                image.image.draw(&image.texture, &c.draw_state, c.transform, gl);
+                image
+                    .image
+                    .draw(&image.texture, &c.draw_state, c.transform, gl);
             }
 
             for digit in digits {
-                numbers[digit as usize].image.draw(&numbers[digit as usize].texture, &c.draw_state, c.transform, gl);
+                numbers[digit as usize].image.draw(
+                    &numbers[digit as usize].texture,
+                    &c.draw_state,
+                    c.transform,
+                    gl,
+                );
             }
         });
 
@@ -393,7 +464,7 @@ impl App {
 
     fn update(&mut self, args: &UpdateArgs) {
         if self.player.is_dead {
-            return
+            return;
         }
         self.possibly_create_random_faller();
         self.spawn_percent_chance += 0.001_f64;
@@ -413,7 +484,12 @@ impl App {
     fn update_fallers(&mut self, args: &UpdateArgs) {
         for faller in &mut self.fallers {
             faller.update(&args);
-            if are_colliding(&self.player.coordinate, self.player.size, &faller.coordinate, faller.size) {
+            if are_colliding(
+                &self.player.coordinate,
+                self.player.size,
+                &faller.coordinate,
+                faller.size,
+            ) {
                 faller.is_dead = true;
                 self.player.collided();
             }
@@ -423,13 +499,17 @@ impl App {
 
     fn possibly_create_random_faller(&mut self) {
         if self.rng.gen_range(0_f64, 100_f64) < self.spawn_percent_chance {
-            let size = self.rng.gen_range(self.faller_size_min+self.faller_size_offset, self.faller_size_max+self.faller_size_offset);
+            let size = self.rng.gen_range(
+                self.faller_size_min + self.faller_size_offset,
+                self.faller_size_max + self.faller_size_offset,
+            );
             self.fallers.push(Faller {
                 coordinate: Coordinate {
-                    x: self.rng.gen_range(0_f64, WIDTH as f64 -size),
-                    y: -size
+                    x: self.rng.gen_range(0_f64, WIDTH as f64 - size),
+                    y: -size,
                 },
-                velocity: self.rng.gen_range(self.faller_velocity_min, self.faller_velocity_max),
+                velocity: self.rng
+                    .gen_range(self.faller_velocity_min, self.faller_velocity_max),
                 size: size,
                 is_dead: false,
             })
@@ -458,9 +538,27 @@ fn main() {
 
     let mut app = App::new();
 
-    let game_over_image = Image::new(Coordinate{x: 0.0, y: 0.0}, 800.0, 120.0, "./images/GameOver.png");
-    let time_image = Image::new(Coordinate{x:50f64, y:300f64}, 370.0, 70.0, "./images/Time.png");
-    let restart_image = Image::new(Coordinate{x:0f64, y:500f64}, 700.0, 70.0, "./images/Restart.png");
+    let game_over_image = Image::new(
+        Coordinate { x: 0.0, y: 0.0 },
+        800.0,
+        120.0,
+        "./images/GameOver.png",
+    );
+    let time_image = Image::new(
+        Coordinate {
+            x: 50f64,
+            y: 300f64,
+        },
+        370.0,
+        70.0,
+        "./images/Time.png",
+    );
+    let restart_image = Image::new(
+        Coordinate { x: 0f64, y: 500f64 },
+        700.0,
+        70.0,
+        "./images/Restart.png",
+    );
     let images = vec![game_over_image, time_image, restart_image];
     let mut numbers = load_numbers();
 
