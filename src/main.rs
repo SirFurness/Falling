@@ -458,27 +458,24 @@ impl App {
                 );
             }
         });
-
-        //println!("{}", self.time_elapsed);
     }
 
     fn update(&mut self, args: &UpdateArgs) {
-        if self.player.is_dead {
-            return;
+        if !self.player.is_dead {
+            self.possibly_create_random_faller();
+            self.spawn_percent_chance += 0.001_f64;
+            self.faller_size_offset += 0.003_f64;
+
+            self.player.update(&args);
+
+            self.update_fallers(args);
+
+            if self.player.is_dead {
+                self.is_game_over = true;
+            }
+
+            self.time_elapsed += args.dt;
         }
-        self.possibly_create_random_faller();
-        self.spawn_percent_chance += 0.001_f64;
-        self.faller_size_offset += 0.003_f64;
-
-        self.player.update(&args);
-
-        self.update_fallers(args);
-
-        if self.player.is_dead {
-            self.is_game_over = true;
-        }
-
-        self.time_elapsed += args.dt;
     }
 
     fn update_fallers(&mut self, args: &UpdateArgs) {
