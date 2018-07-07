@@ -241,6 +241,7 @@ fn are_colliding(coord_one: &Coordinate, size_one: f64, coord_two: &Coordinate, 
 struct Image {
     image: graphics::Image,
     texture: opengl_graphics::Texture,
+    width: f64,
 }
 
 impl Image {
@@ -248,7 +249,51 @@ impl Image {
         Image {
             image: graphics::Image::new().rect([coordinate.x, coordinate.y, width, height]),
             texture: opengl_graphics::Texture::from_path(Path::new(path), &texture::TextureSettings::new()).unwrap(),
+            width,
         }
+    }
+
+    fn set_coordinate(&mut self, coordinate: Coordinate) {
+        if let Some(ref mut rectangle) = self.image.rectangle {
+            rectangle[0] = coordinate.x;
+            rectangle[1] = coordinate.y;
+        }
+    }
+}
+
+fn load_numbers() -> Vec<Image> {
+    let mut numbers = vec![];
+
+    for i in 0..10 {
+        numbers.push(Image::new(Coordinate{x:0f64,y:0f64}, 45.0, 65.0, &("./images/".to_owned()+&i.to_string()+".png")));
+    }
+
+    numbers
+}
+
+fn get_digits(number_u64: u64) -> Vec<u32> {
+    let mut number = number_u64 as f64;
+
+    let mut digits = vec![];
+
+    while number != 0.0 {
+        digits.push((number-((number/10.0).floor())*10.0) as u32);
+
+        number = (number/10.0).floor();
+    }
+
+    digits.reverse();
+    digits
+}
+
+fn set_number_coordinates(time: u64, coordinate: Coordinate, numbers: &mut Vec<Image>) {
+    let digits = get_digits(time);
+
+    let padding = numbers[0].width as usize;
+    for i in 0..digits.len() {
+        let number = digits[i];
+
+        numbers[number as usize].set_coordinate(Coordinate{x: coordinate.x+(i*padding) as f64, y:coordinate.y});
     }
 }
 
@@ -265,6 +310,7 @@ struct App {
     faller_velocity_max: f64,
     is_game_over: bool,
     time_elapsed: f64,
+    is_first_game_over_render: bool,
 }
 
 impl App {
@@ -282,6 +328,7 @@ impl App {
             faller_velocity_max: 500_f64,
             is_game_over: false,
             time_elapsed: 0_f64,
+            is_first_game_over_render: true,
         }
     }
 
@@ -296,6 +343,7 @@ impl App {
         self.time_elapsed = 0_f64;
 
         self.is_game_over = false;
+        self.is_first_game_over_render = true;
     }
 
     fn render(&mut self, args: &RenderArgs) {
@@ -316,15 +364,28 @@ impl App {
         }
     }
 
-    fn render_game_over(&mut self, args: &RenderArgs, game_over_image: &Image) {
+    fn render_game_over(&mut self, args: &RenderArgs, images: &Vec<Image>, numbers: &mut Vec<Image>) {
         use graphics;
 
+        if self.is_first_game_over_render {
+            set_number_coordinates(self.time_elapsed.round() as u64, Coordinate{x:430f64,y:300f64}, numbers);
+            self.is_first_game_over_render = false;
+        }
+
         const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+
+        let digits = get_digits(self.time_elapsed.round() as u64);
 
         self.gl.draw(args.viewport(), |c, gl| {
             graphics::clear(WHITE, gl);
 
-            game_over_image.image.draw(&game_over_image.texture, &c.draw_state, c.transform, gl);
+            for image in images {
+                image.image.draw(&image.texture, &c.draw_state, c.transform, gl);
+            }
+
+            for digit in digits {
+                numbers[digit as usize].image.draw(&numbers[digit as usize].texture, &c.draw_state, c.transform, gl);
+            }
         });
 
         //println!("{}", self.time_elapsed);
@@ -332,7 +393,6 @@ impl App {
 
     fn update(&mut self, args: &UpdateArgs) {
         if self.player.is_dead {
-            //self.reset();
             return
         }
         self.possibly_create_random_faller();
@@ -377,6 +437,11 @@ impl App {
     }
 
     fn button(&mut self, args: &ButtonArgs) {
+        if self.player.is_dead {
+            if args.button == Button::Keyboard(Key::R) {
+                self.reset();
+            }
+        }
         self.player.button(args);
     }
 }
@@ -394,12 +459,16 @@ fn main() {
     let mut app = App::new();
 
     let game_over_image = Image::new(Coordinate{x: 0.0, y: 0.0}, 800.0, 120.0, "./images/GameOver.png");
+    let time_image = Image::new(Coordinate{x:50f64, y:300f64}, 370.0, 70.0, "./images/Time.png");
+    let restart_image = Image::new(Coordinate{x:0f64, y:500f64}, 700.0, 70.0, "./images/Restart.png");
+    let images = vec![game_over_image, time_image, restart_image];
+    let mut numbers = load_numbers();
 
     let mut events = Events::new(EventSettings::new().ups(UPS));
     while let Some(e) = events.next(&mut window) {
         if let Some(r) = e.render_args() {
             if app.is_game_over {
-                app.render_game_over(&r, &game_over_image);
+                app.render_game_over(&r, &images, &mut numbers);
             } else {
                 app.render(&r);
             }
