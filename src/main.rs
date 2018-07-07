@@ -239,7 +239,7 @@ struct Patterns {
     wave: Pattern,
 }
 
-fn create_old_wave_pattern(faller_size: f64, faller_velocity: f64, gap: f64) -> Pattern {
+fn create_wave_pattern(faller_size: f64, faller_velocity: f64, gap: f64) -> Pattern {
     let num_of_fallers = (WIDTH as f64 / faller_size).round() as u64;
 
     let mut wave_pattern = vec![];
