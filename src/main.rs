@@ -530,6 +530,7 @@ fn main() {
         .opengl(opengl)
         .vsync(true)
         .exit_on_esc(true)
+        .resizable(false)
         .build()
         .unwrap();
 
